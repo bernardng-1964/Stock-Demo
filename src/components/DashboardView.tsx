@@ -10,6 +10,8 @@ import {
   GraduationCap,
   Coins,
   Smile,
+  RefreshCw,
+  Activity,
 } from 'lucide-react';
 import { StockInstrument, MarketIndex, NewsItem, Timeframe, ChibiMascotId } from '../types';
 import { chibiMascots } from '../data/mockData';
@@ -23,6 +25,9 @@ interface DashboardViewProps {
   onSelectInstrument: (symbol: string) => void;
   onNavigateToTab: (tab: string) => void;
   soundEnabled: boolean;
+  isSyncing?: boolean;
+  lastSyncTime?: string;
+  onSyncAlpaca?: () => void;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
@@ -33,6 +38,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onSelectInstrument,
   onNavigateToTab,
   soundEnabled,
+  isSyncing = false,
+  lastSyncTime,
+  onSyncAlpaca,
 }) => {
   const [selectedIndexTimeframe, setSelectedIndexTimeframe] = useState<Timeframe>('1D');
   const [currentMascotIndex, setCurrentMascotIndex] = useState(0);
@@ -49,6 +57,43 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6">
+      {/* Alpaca API Sync Ribbon */}
+      <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-amber-50 border border-emerald-200/80 rounded-2xl px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 shadow-xs">
+        <div className="flex items-center gap-2.5">
+          <span className="relative flex h-3 w-3">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+          </span>
+          <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
+            <span className="text-emerald-800 font-extrabold uppercase tracking-wide">Alpaca Market Data v2:</span>
+            <span className="text-slate-600 font-medium">
+              Live quotes connected ({instruments.length} junior equities tracked)
+            </span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          {lastSyncTime && (
+            <span className="text-xs text-slate-500 font-medium">
+              Last synced: <span className="font-bold text-slate-700">{lastSyncTime}</span>
+            </span>
+          )}
+          {onSyncAlpaca && (
+            <button
+              onClick={() => {
+                if (soundEnabled) playChibiSound('pop');
+                onSyncAlpaca();
+              }}
+              disabled={isSyncing}
+              className="flex items-center gap-1.5 px-3 py-1 bg-white hover:bg-emerald-50 border border-emerald-300 rounded-full text-xs font-bold text-emerald-800 shadow-xs hover:shadow transition-all active:scale-95 cursor-pointer disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-emerald-600 ${isSyncing ? 'animate-spin' : ''}`} />
+              <span>{isSyncing ? 'Refreshing...' : 'Refresh Alpaca Quotes'}</span>
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* 1. Market Weather & Chibi Mascot Welcome Banner */}
       <div className="bg-gradient-to-r from-amber-100 via-orange-100 to-amber-50 border-2 border-amber-300 rounded-3xl p-5 shadow-sm relative overflow-hidden">
         <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 relative z-10">
@@ -129,8 +174,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {indices.map((idx) => {
-            const data = idx.timeframes[selectedIndexTimeframe];
+            const data = idx.timeframes?.[selectedIndexTimeframe] || idx.timeframes?.['1D'] || {
+              value: idx.value,
+              changePercent: idx.changePercent,
+              sparkline: [idx.value, idx.value],
+            };
             const isPos = data.changePercent >= 0;
+            const displayValue = data.value ?? idx.value;
             const { path, areaPath } = getSparklineSvgPath(data.sparkline, 120, 36);
 
             return (
@@ -154,7 +204,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <div className="mt-3 pt-2 border-t border-slate-100 flex items-end justify-between">
                   <div>
                     <div className="font-bold text-base text-slate-800 tabular-nums">
-                      {idx.value.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      {displayValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </div>
                     <div
                       className={`text-xs font-extrabold flex items-center gap-0.5 ${
@@ -164,6 +214,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       {isPos ? <ArrowUpRight className="w-3.5 h-3.5" /> : <ArrowDownRight className="w-3.5 h-3.5" />}
                       {isPos ? '+' : ''}
                       {data.changePercent.toFixed(2)}%
+                      {selectedIndexTimeframe === '1D' && idx.change !== undefined && (
+                        <span className="text-[10px] opacity-75 ml-0.5">
+                          ({idx.change >= 0 ? '+' : ''}{idx.change.toFixed(2)})
+                        </span>
+                      )}
                     </div>
                   </div>
 

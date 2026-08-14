@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Sparkles, Coins, HelpCircle, Settings, Volume2, VolumeX } from 'lucide-react';
+import { Search, Sparkles, Coins, HelpCircle, Settings, Volume2, VolumeX, RefreshCw } from 'lucide-react';
 import { StockInstrument, PortfolioStats } from '../types';
 import { formatCoins, playChibiSound } from '../utils/formatters';
 
@@ -12,6 +12,9 @@ interface HeaderProps {
   portfolioStats?: PortfolioStats;
   soundEnabled: boolean;
   onToggleSound: () => void;
+  isSyncing?: boolean;
+  lastSyncTime?: string;
+  onSyncAlpaca?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -23,6 +26,9 @@ export const Header: React.FC<HeaderProps> = ({
   portfolioStats,
   soundEnabled,
   onToggleSound,
+  isSyncing = false,
+  lastSyncTime,
+  onSyncAlpaca,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchFocused, setIsSearchFocused] = useState(false);
@@ -44,7 +50,7 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   return (
-    <header className="fixed top-0 left-0 right-0 h-16 bg-white/95 backdrop-blur-md border-b-2 border-amber-200/80 flex items-center justify-between px-4 md:px-6 z-50 shadow-sm">
+    <header className="fixed top-0 left-0 right-0 h-16 bg-white/95 backdrop-blur-md border-b-2 border-amber-200/80 flex items-center justify-between px-3 md:px-6 z-50 shadow-sm">
       {/* Brand & Market Status */}
       <div className="flex items-center gap-3 md:gap-5">
         <div
@@ -63,12 +69,35 @@ export const Header: React.FC<HeaderProps> = ({
                 Kids 10+
               </span>
             </span>
-            <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              Market is Open &amp; Bouncy ☀️
-            </span>
+            <div className="flex items-center gap-2 text-[11px] font-semibold text-slate-500">
+              <span className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                Alpaca Live Feed
+              </span>
+              {lastSyncTime && (
+                <span className="hidden xl:inline-block text-slate-400 font-normal">
+                  &bull; Synced {lastSyncTime}
+                </span>
+              )}
+            </div>
           </div>
         </div>
+
+        {/* Alpaca Sync Button */}
+        {onSyncAlpaca && (
+          <button
+            onClick={() => {
+              if (soundEnabled) playChibiSound('pop');
+              onSyncAlpaca();
+            }}
+            disabled={isSyncing}
+            title="Sync latest live prices with Alpaca Market Data API"
+            className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300/80 rounded-full text-xs font-bold transition-all active:scale-95 cursor-pointer disabled:opacity-50"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-amber-600 ${isSyncing ? 'animate-spin' : ''}`} />
+            <span>{isSyncing ? 'Syncing...' : 'Sync Alpaca'}</span>
+          </button>
+        )}
       </div>
 
       {/* Center Search Bar with Kid-Friendly Suggestions */}

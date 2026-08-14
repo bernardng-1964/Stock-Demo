@@ -4,7 +4,7 @@ import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import { createServer as createViteServer } from 'vite';
 import { handleInsightRequest, validateTransaction } from './api/insight.js';
-import { getAlpacaStockSnapshots, getLiveMarketNews } from './api/alpaca.js';
+import { getAlpacaStockSnapshots, getLiveMarketNews, getAlpacaMarketIndices } from './api/alpaca.js';
 
 dotenv.config();
 
@@ -28,6 +28,17 @@ app.get('/api/market/stocks', async (req: Request, res: Response) => {
     res.json({ success: true, count: stocks.length, stocks });
   } catch (error: any) {
     console.error('Error in /api/market/stocks:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// API: Live Major Market Indices (S&P 500, NASDAQ, DOW JONES, VIX)
+app.get('/api/market/indices', async (req: Request, res: Response) => {
+  try {
+    const indices = await getAlpacaMarketIndices();
+    res.json({ success: true, count: indices.length, indices });
+  } catch (error: any) {
+    console.error('Error in /api/market/indices:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

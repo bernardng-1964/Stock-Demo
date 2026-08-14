@@ -32,6 +32,7 @@ export interface StockInstrument {
   high: number;
   low: number;
   close: number;
+  prevClose?: number;
   fairValue: number; // Ollie Owl's estimated true worth
   discountPercent: number; // e.g. +12% discount (bargain) or -8% (overpriced)
   marketCapKid: string; // e.g. "$3.1 Trillion (Mega Giant)"

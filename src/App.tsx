@@ -40,6 +40,100 @@ export function App() {
   // Selected Stock for Inspector / Bargain Detective
   const [selectedStock, setSelectedStock] = useState<StockInstrument>(initialInstruments[0]);
 
+  // Alpaca Live Market Synchronization State
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
+  const [lastSyncTime, setLastSyncTime] = useState<string>('');
+
+  // Synchronize with Alpaca Live Market API
+  const syncWithAlpacaApi = async () => {
+    try {
+      setIsSyncing(true);
+      const response = await fetch('/api/market/stocks');
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && Array.isArray(data.stocks) && data.stocks.length > 0) {
+          setInstruments((prevInstruments) => {
+            return prevInstruments.map((inst) => {
+              const live = data.stocks.find((s: any) => s.symbol === inst.symbol);
+              if (!live) return inst;
+              return {
+                ...inst,
+                lastPrice: live.lastPrice ?? live.price ?? inst.lastPrice,
+                change: live.change ?? live.changeDollar ?? inst.change,
+                changePercent: live.changePercent ?? inst.changePercent,
+                open: live.open ?? inst.open,
+                high: Math.max(live.high ?? inst.high, live.lastPrice ?? inst.lastPrice),
+                low: Math.min(live.low ?? inst.low, live.lastPrice ?? inst.lastPrice),
+                close: live.close ?? live.price ?? inst.close,
+                prevClose: live.prevClose ?? inst.prevClose ?? inst.open,
+                fairValue: live.fairValue ?? inst.fairValue,
+                discountPercent: live.discountPercent ?? inst.discountPercent,
+                valuation: live.valuation ?? inst.valuation,
+                sparkline: live.sparkline && live.sparkline.length > 0 ? live.sparkline : inst.sparkline,
+              };
+            });
+          });
+
+          // Also keep selectedStock updated
+          setSelectedStock((prev) => {
+            const live = data.stocks.find((s: any) => s.symbol === prev.symbol);
+            if (!live) return prev;
+            return {
+              ...prev,
+              lastPrice: live.lastPrice ?? live.price ?? prev.lastPrice,
+              change: live.change ?? live.changeDollar ?? prev.change,
+              changePercent: live.changePercent ?? prev.changePercent,
+              open: live.open ?? prev.open,
+              high: Math.max(live.high ?? prev.high, live.lastPrice ?? prev.lastPrice),
+              low: Math.min(live.low ?? prev.low, live.lastPrice ?? prev.lastPrice),
+              close: live.close ?? live.price ?? prev.close,
+              prevClose: live.prevClose ?? prev.prevClose ?? prev.open,
+              fairValue: live.fairValue ?? prev.fairValue,
+              discountPercent: live.discountPercent ?? prev.discountPercent,
+              valuation: live.valuation ?? prev.valuation,
+              sparkline: live.sparkline && live.sparkline.length > 0 ? live.sparkline : prev.sparkline,
+            };
+          });
+
+          setLastSyncTime(
+            new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+          );
+        }
+      }
+
+      // Sync real live major indices (S&P 500, NASDAQ, DOW JONES, VIX)
+      const indicesRes = await fetch('/api/market/indices');
+      if (indicesRes.ok) {
+        const indicesData = await indicesRes.json();
+        if (indicesData.success && Array.isArray(indicesData.indices) && indicesData.indices.length > 0) {
+          setIndices(indicesData.indices);
+        }
+      }
+
+      // Sync real financial news wire
+      const newsRes = await fetch('/api/market/news');
+      if (newsRes.ok) {
+        const newsData = await newsRes.json();
+        if (newsData.success && Array.isArray(newsData.news) && newsData.news.length > 0) {
+          setNews(newsData.news);
+        }
+      }
+    } catch (err) {
+      console.warn('Alpaca market sync error:', err);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  // Initial Alpaca synchronization on load and periodic refresh every 25 seconds
+  useEffect(() => {
+    syncWithAlpacaApi();
+    const interval = setInterval(() => {
+      syncWithAlpacaApi();
+    }, 25000);
+    return () => clearInterval(interval);
+  }, []);
+
   // Modals state
   const [isNewOrderOpen, setIsNewOrderOpen] = useState(false);
   const [orderTargetSymbol, setOrderTargetSymbol] = useState<string | undefined>(undefined);
@@ -63,7 +157,7 @@ export function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Subtle live stock fluctuations every 5s
+  // Subtle live stock & index fluctuations every 5s
   useEffect(() => {
     const interval = setInterval(() => {
       setInstruments((prev) => {
@@ -72,8 +166,9 @@ export function App() {
           if (idx !== randomIndex) return inst;
           const delta = (Math.random() - 0.48) * (inst.lastPrice * 0.002);
           const newPrice = Math.max(1, +(inst.lastPrice + delta).toFixed(2));
-          const priceDiff = +(newPrice - inst.open).toFixed(2);
-          const changePercent = +((priceDiff / inst.open) * 100).toFixed(2);
+          const baseRef = inst.prevClose || inst.open || inst.lastPrice;
+          const priceDiff = +(newPrice - baseRef).toFixed(2);
+          const changePercent = +((priceDiff / baseRef) * 100).toFixed(2);
           const newSparkline = [...inst.sparkline.slice(1), newPrice];
 
           return {
@@ -84,6 +179,37 @@ export function App() {
             high: Math.max(inst.high, newPrice),
             low: Math.min(inst.low, newPrice),
             sparkline: newSparkline,
+          };
+        });
+      });
+
+      // Subtle index fluctuation
+      setIndices((prev) => {
+        const randomIdx = Math.floor(Math.random() * prev.length);
+        return prev.map((item, idx) => {
+          if (idx !== randomIdx) return item;
+          const delta = (Math.random() - 0.48) * (item.value * 0.0006);
+          const newVal = +(item.value + delta).toFixed(2);
+          const newChange = +(item.change + delta).toFixed(2);
+          const newChangePct = +(((newVal - (item.value - item.change)) / (item.value - item.change)) * 100).toFixed(2);
+
+          const currentTf = item.timeframes['1D'];
+          const newSpark = [...currentTf.sparkline.slice(1), newVal];
+
+          return {
+            ...item,
+            value: newVal,
+            change: newChange,
+            changePercent: newChangePct,
+            timeframes: {
+              ...item.timeframes,
+              '1D': {
+                ...currentTf,
+                value: newVal,
+                changePercent: newChangePct,
+                sparkline: newSpark,
+              },
+            },
           };
         });
       });
@@ -263,6 +389,9 @@ export function App() {
         onToggleSound={() => setSoundEnabled((v) => !v)}
         instruments={instruments}
         onSelectInstrument={handleSelectInstrument}
+        isSyncing={isSyncing}
+        lastSyncTime={lastSyncTime}
+        onSyncAlpaca={syncWithAlpacaApi}
       />
 
       {/* 2. Main Body with Sidebar & Dynamic View */}
@@ -289,6 +418,9 @@ export function App() {
               onSelectInstrument={handleSelectInstrument}
               onNavigateToTab={setActiveTab}
               soundEnabled={soundEnabled}
+              isSyncing={isSyncing}
+              lastSyncTime={lastSyncTime}
+              onSyncAlpaca={syncWithAlpacaApi}
             />
           )}
 
