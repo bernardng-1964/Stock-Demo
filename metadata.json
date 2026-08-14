@@ -1,0 +1,6 @@
+{
+  "name": "TradeView Pro",
+  "description": "Chibi-themed junior stock exchange and financial advisory designed for 10-year-olds to learn investing, fair value, and portfolio management.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
